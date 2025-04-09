@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { io } from "socket.io-client";
 
 const API_BASE = "http://localhost:3000";
+// const API_BASE = "https://edu-quiz-backend.onrender.com";
 
 export default function App() {
   const [mode, setMode] = useState("login");
@@ -66,6 +67,8 @@ export default function App() {
         });
         newSocket.on("quizStarted", () => {
           console.log("quizStarted");
+          if (roomAction === "lobby") return;
+          setRoomAction("quiz");
         });
         newSocket.on("newQuestion", (question) => {
           console.log("newQuestion: ", question);
@@ -78,7 +81,9 @@ export default function App() {
           setCurrentQuestion(null);
           setTimeLeft(0);
           clearInterval(intervalId);
-          setScoreboard(finalScoreboard);
+          setScoreboard(finalScoreboard.scoreboard);
+          setRoomAction("scoreboard");
+          console.log("finalScoreboard:", finalScoreboard);
         });
         setSocket(newSocket);
       } else {
@@ -220,29 +225,42 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (roomAction !== "quiz" || timeLeft <= 0) return;
+    if ((roomAction === "quiz" || roomAction === "lobby") && timeLeft > 0) {
+      console.log("timeLeft:", timeLeft);
+      const id = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+      }, 1000);
+      setIntervalId(id);
 
-    const id = setInterval(() => {
-      setTimeLeft((prev) => prev - 1);
-    }, 1000);
-    setIntervalId(id);
-
-    return () => clearInterval(id);
+      return () => clearInterval(id);
+    }
   }, [roomAction, timeLeft]);
 
-  useEffect(() => {
-    if (roomAction === "quiz" && timeLeft === 0 && selectedOption==null) {
-      clearInterval(intervalId);
+  // useEffect(() => {
+  //   if (roomAction === "quiz" && timeLeft === 0 && selectedOption==null) {
+  //     clearInterval(intervalId);
 
-      // Auto-submit logic here
-      // Example: emit selectedAnswer or null
-      socket.emit("submitAnswer", {
-        roomId: roomId,
-        answerId: -1,
-        questionId: questionIndex,
-      });
-    }
-  }, [timeLeft, roomAction]);
+  //     // Auto-submit logic here
+  //     // Example: emit selectedAnswer or null
+  //     socket.emit("submitAnswer", {
+  //       roomId: roomId,
+  //       answerId: -1,
+  //       questionId: questionIndex,
+  //     });
+  //   }
+  // }, [timeLeft, roomAction]);
+
+  const submitAnswer = (selectedOption) => {
+    console.log(
+      "submitAnswer:: roomId:",
+      roomId,
+      "questionIndex:",
+      questionIndex,
+      "selectedOption:",
+      selectedOption
+    );
+    socket.emit("submitAnswer", { roomId: roomId, answerId: selectedOption, questionId: currentQuestion._id } );
+  };
 
   if (user && !roomAction) {
     return (
@@ -343,11 +361,13 @@ export default function App() {
             <div key={i}>
               <strong>
                 Q{i + 1}: {q.question}
+                <ul>
+                  {q.options.map((op, i) => <li key={i}>{op}</li>)}
+                </ul>
               </strong>
             </div>
           ))}
-          if (currentQuestion){" "}
-          {
+          {currentQuestion !== null ? (
             <div className="container">
               <div className="card">
                 <h2>Question {questionIndex}</h2>
@@ -361,8 +381,9 @@ export default function App() {
                 {/* You can add an option selector & submit button here */}
               </div>
             </div>
-          }{" "}
-          else {<button onClick={startQuiz}>Start Quiz</button>}
+          ) : (
+            <button onClick={startQuiz}>Start Quiz</button>
+          )}
         </div>
       </div>
     );
@@ -392,6 +413,15 @@ export default function App() {
   }
 
   if (roomAction === "quiz") {
+    if (!currentQuestion) {
+      return (
+        <div className="container">
+          <div className="card">
+            <h2>Waiting for question...</h2>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="container">
         <div className="card">
@@ -399,11 +429,48 @@ export default function App() {
           <p>{currentQuestion.question}</p>
           <ul>
             {currentQuestion.options.map((opt, i) => (
-              <li key={i}>{opt}</li>
+              // <li key={i}>{opt}</li>
+              <button key={i} onClick={() => submitAnswer(i)}>
+                {opt}
+              </button>
             ))}
           </ul>
           <p>Time Left: {timeLeft}s</p>
           {/* You can add an option selector & submit button here */}
+        </div>
+      </div>
+    );
+  }
+
+  if (roomAction === "scoreboard") {
+    if (!scoreboard) {
+      return (
+        <div className="container">
+          <div className="card">
+            <h2>Waiting for scoreboard...</h2>
+          </div>
+        </div>
+      );
+    }
+    const sortedScoreboard = [...scoreboard].sort((a, b) => b.score - a.score);
+    console.log(sortedScoreboard);
+    return (
+      <div className="container">
+        <div className="card">
+          <h2>Scoreboard:</h2>
+          <ul>
+            {scoreboard.map((entry, i) => (
+              <li key={i}>{entry.userId}: {entry.score}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="card">
+          <h2>Sorted Scoreboard:</h2>
+          <ul>
+            {sortedScoreboard.map((entry, i) => (
+              <li key={i}>{entry.userId}: {entry.score}</li>
+            ))}
+          </ul>
         </div>
       </div>
     );
