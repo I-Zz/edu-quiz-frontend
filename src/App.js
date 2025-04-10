@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { io } from "socket.io-client";
 
-const API_BASE = "http://localhost:3000";
+const API_BASE = process.env.REACT_APP_API_BASE;
+const OPENROUTER_API_KEY = process.env.REACT_APP_OPENROUTER_API_KEY;
+// const API_BASE = "http://localhost:3000";
 // const API_BASE = "https://edu-quiz-backend.onrender.com";
 
 export default function App() {
@@ -23,6 +25,11 @@ export default function App() {
     },
   ]);
   const [roomId, setRoomId] = useState("");
+
+  const [prompt, setPrompt] = useState("");
+  const [difficulty, setDifficulty] = useState("medium");
+  const [questionCount, setQuestionCount] = useState(5);
+  const [loading, setLoading] = useState(false);
 
   const [createdRoom, setCreatedRoom] = useState(null);
   const [participants, setParticipants] = useState([]);
@@ -219,6 +226,48 @@ export default function App() {
     setQuestions(updated);
   };
 
+  const generateQuestions = async (
+    prompt,
+    count = 5,
+    difficulty = "medium"
+  ) => {
+    setLoading(true);
+    try {
+      const response = await fetch(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "deepseek/deepseek-chat-v3-0324:free",
+            messages: [
+              {
+                role: "user",
+                content: `Generate ${count} ${difficulty} level multiple choice questions based on this topic: "${prompt}". Each question should be in JSON format: { question: "string", options: ["option1", "option2", "option3", "option4"], correctAnswer: index_of_correct_option (0-3), timeLimit: 15 } Only return an array of question objects.`,
+              },
+            ],
+          }),
+        }
+      );
+      console.log(response);
+
+      if (!response.ok) throw new Error("API request failed");
+
+      const data = await response.json();
+      const text = data.choices[0].message.content;
+      const parsed = JSON.parse(text);
+      console.log(parsed);
+      setQuestions(parsed);
+    } catch (error) {
+      console.error("Error generating questions:", error);
+      alert("Failed to generate questions. Check the API key or prompt.");
+    }
+    setLoading(false);
+  };
+
   const startQuiz = () => {
     socket.emit("startQuiz", { roomId: createdRoom._id });
     console.log("quiz started");
@@ -259,7 +308,11 @@ export default function App() {
       "selectedOption:",
       selectedOption
     );
-    socket.emit("submitAnswer", { roomId: roomId, answerId: selectedOption, questionId: currentQuestion._id } );
+    socket.emit("submitAnswer", {
+      roomId: roomId,
+      answerId: selectedOption,
+      questionId: currentQuestion._id,
+    });
   };
 
   if (user && !roomAction) {
@@ -287,6 +340,44 @@ export default function App() {
         </div>
         <div className="card">
           <h2>Create Room</h2>
+          <div style={{ marginBottom: "20px" }}>
+            <label>Prompt:</label>
+            <textarea
+              rows="4"
+              cols="50"
+              placeholder="Enter topic or prompt for generating questions"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+            />
+
+            <label>Difficulty:</label>
+            <select
+              value={difficulty}
+              onChange={(e) => setDifficulty(e.target.value)}
+            >
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+
+            <label>Number of Questions:</label>
+            <input
+              type="number"
+              min="1"
+              value={questionCount}
+              onChange={(e) =>
+                setQuestionCount(Math.max(1, parseInt(e.target.value) || 1))
+              }
+            />
+
+            <button
+              onClick={() =>
+                generateQuestions(prompt, questionCount, difficulty)
+              }
+            >
+              Generate Questions
+            </button>
+          </div>
           {questions.map((q, i) => (
             <div
               key={i}
@@ -362,7 +453,9 @@ export default function App() {
               <strong>
                 Q{i + 1}: {q.question}
                 <ul>
-                  {q.options.map((op, i) => <li key={i}>{op}</li>)}
+                  {q.options.map((op, i) => (
+                    <li key={i}>{op}</li>
+                  ))}
                 </ul>
               </strong>
             </div>
@@ -460,7 +553,9 @@ export default function App() {
           <h2>Scoreboard:</h2>
           <ul>
             {scoreboard.map((entry, i) => (
-              <li key={i}>{entry.userId}: {entry.score}</li>
+              <li key={i}>
+                {entry.userId}: {entry.score}
+              </li>
             ))}
           </ul>
         </div>
@@ -468,7 +563,9 @@ export default function App() {
           <h2>Sorted Scoreboard:</h2>
           <ul>
             {sortedScoreboard.map((entry, i) => (
-              <li key={i}>{entry.userId}: {entry.score}</li>
+              <li key={i}>
+                {entry.userId}: {entry.score}
+              </li>
             ))}
           </ul>
         </div>
