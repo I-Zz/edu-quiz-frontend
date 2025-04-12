@@ -21,7 +21,7 @@ export default function App() {
       question: "",
       options: ["", "", "", ""],
       correctAnswer: 0,
-      timeLimit: 30,
+      timeLimit: 15,
     },
   ]);
   const [roomId, setRoomId] = useState("");
@@ -67,6 +67,8 @@ export default function App() {
         });
         newSocket.on("joinRoomSuccess", (data) => {
           console.log("Room joined successfully! roomId: ", data.roomId);
+          setRoomId(data.roomId);
+          setRoomAction("joined");
         });
         newSocket.on("participantJoined", (participant) => {
           console.log("New Participant joined! userId: ", participant);
@@ -233,39 +235,27 @@ export default function App() {
   ) => {
     setLoading(true);
     try {
-      const response = await fetch(
-        "https://openrouter.ai/api/v1/chat/completions",
+      socket.emit(
+        "generateQuestions",
         {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "deepseek/deepseek-chat-v3-0324:free",
-            messages: [
-              {
-                role: "user",
-                content: `Generate ${count} ${difficulty} level multiple choice questions based on this topic: "${prompt}". Each question should be in JSON format: { question: "string", options: ["option1", "option2", "option3", "option4"], correctAnswer: index_of_correct_option (0-3), timeLimit: 15 } Only return an array of question objects.`,
-              },
-            ],
-          }),
+          prompt: prompt,
+          difficulty: difficulty,
+          count: count,
+        },
+        (response) => {
+          if (response.success) {
+            console.log("response Questions:", response.questions);
+            setQuestions(response.questions);
+          } else {
+            console.error("Error:", response.error);
+          }
+          setLoading(false);
         }
       );
-      console.log(response);
-
-      if (!response.ok) throw new Error("API request failed");
-
-      const data = await response.json();
-      const text = data.choices[0].message.content;
-      const parsed = JSON.parse(text);
-      console.log(parsed);
-      setQuestions(parsed);
     } catch (error) {
       console.error("Error generating questions:", error);
       alert("Failed to generate questions. Check the API key or prompt.");
     }
-    setLoading(false);
   };
 
   const startQuiz = () => {
@@ -284,20 +274,6 @@ export default function App() {
       return () => clearInterval(id);
     }
   }, [roomAction, timeLeft]);
-
-  // useEffect(() => {
-  //   if (roomAction === "quiz" && timeLeft === 0 && selectedOption==null) {
-  //     clearInterval(intervalId);
-
-  //     // Auto-submit logic here
-  //     // Example: emit selectedAnswer or null
-  //     socket.emit("submitAnswer", {
-  //       roomId: roomId,
-  //       answerId: -1,
-  //       questionId: questionIndex,
-  //     });
-  //   }
-  // }, [timeLeft, roomAction]);
 
   const submitAnswer = (selectedOption) => {
     console.log(
@@ -371,11 +347,13 @@ export default function App() {
             />
 
             <button
-              onClick={() =>
-                generateQuestions(prompt, questionCount, difficulty)
+              onClick={
+                loading
+                  ? null
+                  : () => generateQuestions(prompt, questionCount, difficulty)
               }
             >
-              Generate Questions
+              {loading ? "Generating..." : "Generate Questions"}
             </button>
           </div>
           {questions.map((q, i) => (
@@ -481,6 +459,22 @@ export default function App() {
       </div>
     );
   }
+
+  if (roomAction == "joined")
+    return (
+      <div className="container">
+        <div className="card">
+          <h2>Welcome, {user.displayName}</h2>
+          <p>Email: {user.email}</p>
+          <p>userId: {user._id}</p>
+        </div>
+        <div className="card">
+          <h2>Room Lobby</h2>
+          <h3>Room ID: {createdRoom?._id || "N/A"}</h3>
+          <p>Waiting for the host to start the quiz...</p>
+        </div>
+      </div>
+    );
 
   if (roomAction === "join") {
     return (
