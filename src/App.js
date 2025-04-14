@@ -4,8 +4,9 @@ import { useState, useEffect } from "react"
 import { io } from "socket.io-client"
 import "./App.css"
 
-const API_BASE = "http://localhost:3000"
+// const API_BASE = "http://localhost:3000"
 // const API_BASE = "https://edu-quiz-backend.onrender.com";
+const API_BASE = process.env.REACT_APP_API_BASE;
 
 export default function App() {
   const [mode, setMode] = useState("login")
@@ -27,6 +28,11 @@ export default function App() {
   ])
   const [roomId, setRoomId] = useState("")
 
+  const [prompt, setPrompt] = useState("");
+  const [difficulty, setDifficulty] = useState("medium");
+  const [questionCount, setQuestionCount] = useState(5);
+  const [loading, setLoading] = useState(false);
+
   const [createdRoom, setCreatedRoom] = useState(null)
   const [participants, setParticipants] = useState([])
 
@@ -39,6 +45,7 @@ export default function App() {
 
   const handleLogin = async () => {
     try {
+      setLoading(true)
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,6 +71,8 @@ export default function App() {
         })
         newSocket.on("joinRoomSuccess", (data) => {
           console.log("Room joined successfully! roomId: ", data.roomId)
+          setRoomId(data.roomId)
+          setRoomAction("joined")
         })
         newSocket.on("participantJoined", (participant) => {
           console.log("New Participant joined! userId: ", participant)
@@ -91,8 +100,10 @@ export default function App() {
           console.log("finalScoreboard:", finalScoreboard)
         })
         setSocket(newSocket)
+        setLoading(false)
       } else {
         alert(data.message || "Login failed")
+        setLoading(false)
       }
     } catch {
       alert("Login failed")
@@ -101,6 +112,7 @@ export default function App() {
 
   const handleRegister = async () => {
     try {
+      setLoading(true)
       const res = await fetch(`${API_BASE}/users/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -110,8 +122,10 @@ export default function App() {
       if (res.ok) {
         alert("Registration successful, please login.")
         setMode("login")
+        setLoading(false)
       } else {
         alert(data.message || "Registration failed")
+        setLoading(false)
       }
     } catch {
       alert("Registration failed")
@@ -211,7 +225,7 @@ export default function App() {
         question: "",
         options: ["", "", "", ""],
         correctAnswer: 0,
-        timeLimit: 30,
+        timeLimit: 15,
       },
     ])
   }
@@ -285,7 +299,7 @@ export default function App() {
       <h1 className="app-title">EduQuiz</h1>
       {user && (
         <div className="flex items-center gap-2">
-          <span>Hello, {user.displayName}</span>
+          <span>Your Email: {user.email}</span>
           {roomAction && (
             <button className="btn btn-secondary" onClick={() => setRoomAction(null)}>
               Back
@@ -335,8 +349,8 @@ export default function App() {
               />
             </div>
           )}
-          <button className="btn btn-block" onClick={mode === "login" ? handleLogin : handleRegister}>
-            {mode === "login" ? "Login" : "Register"}
+          <button className="btn btn-block" onClick={loading ? "loading..." : mode === "login" ? handleLogin : handleRegister}>
+            {loading ? "loading..." : mode === "login" ? "Login" : "Register"}
           </button>
           <p className="text-center">
             {mode === "login" ? (
@@ -389,6 +403,14 @@ export default function App() {
           <div className="card">
             <h2 className="card-title">Create Quiz Room</h2>
             <p className="text-center mb-0">Add questions for your quiz</p>
+            <label>Prompt:</label>
+            <textarea
+              rows="4"
+              cols="50"
+              placeholder="Enter topic or prompt for generating questions"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+            />
   
             <label>Difficulty:</label>
             <select
@@ -410,7 +432,7 @@ export default function App() {
               }
             />
   
-            <button
+            <button className="btn"
               onClick={
                 loading
                   ? null
@@ -436,7 +458,8 @@ export default function App() {
   
               <div className="form-group">
                 <label className="form-label">Question</label>
-                <input
+                <textarea
+                  rows="4"
                   type="text"
                   placeholder="Enter your question"
                   value={q.question}
@@ -575,15 +598,14 @@ export default function App() {
   if (roomAction == "joined")
     return (
       <div className="container">
+        <Header />
         <div className="card">
-          <h2>Welcome, {user.displayName}</h2>
-          <p>Email: {user.email}</p>
-          <p>userId: {user._id}</p>
-        </div>
-        <div className="card">
-          <h2>Room Lobby</h2>
-          <h3>Room ID: {createdRoom?._id || "N/A"}</h3>
-          <p>Waiting for the host to start the quiz...</p>
+          <h2 className="card-title">Quiz Room Lobby</h2>
+          <div className="form-group">
+            <label className="form-label">Room ID</label>
+            <input type="text" value={roomId || ""} readOnly onClick={(e) => e.target.select()} />
+            <p className="text-center">Waiting for the host to start the quiz...</p>
+          </div>
         </div>
       </div>
     );
@@ -687,7 +709,8 @@ export default function App() {
             {sortedScoreboard.map((entry, i) => (
               <li key={i} className="scoreboard-item">
                 <span className="scoreboard-rank">#{i + 1}</span>
-                <span className="scoreboard-user">{entry.userId}</span>
+                {/* <span className="scoreboard-user">{entry.userId}</span> */}
+                <span className="scoreboard-user">{entry.email}</span>
                 <span className="scoreboard-score">{entry.score} pts</span>
               </li>
             ))}

@@ -175,6 +175,8 @@ textarea:focus {
   padding: 1.5rem;
   margin-bottom: 1.5rem;
   background-color: #f8fafc;
+  width: 100%;
+  max-width: 500px;
 }
 
 .question-header {
