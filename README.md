@@ -1,6 +1,6 @@
 # EduQuiz
-[Link to the Hosted app](https://edu-quiz-frontend.onrender.com/)
-Login/Password: test@example.com/password
+[Link to the Hosted app](https://edu-quiz-frontend.onrender.com/)  
+Login Credentials: test@example.com / password
 
 # Getting Started with Create React App
 
