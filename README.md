@@ -1,6 +1,8 @@
 # EduQuiz
 [Link to the Hosted app](https://edu-quiz-frontend.onrender.com/)  
-Login Credentials: test@example.com / password
+Login Credentials: test@example.com / password  
+
+[Link to the Backend Repository](https://github.com/I-Zz/edu-quiz-backend)
 
 # Getting Started with Create React App
 
