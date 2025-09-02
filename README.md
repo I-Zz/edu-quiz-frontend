@@ -1,3 +1,7 @@
+# EduQuiz
+[Link to the Hosted app](https://edu-quiz-frontend.onrender.com/)
+Login/Password: test@example.com/password
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
